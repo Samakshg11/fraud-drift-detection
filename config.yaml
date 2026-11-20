@@ -1,0 +1,5 @@
+seed: 42
+split:
+  train_months: 3
+  test_months: 1
+sliding_window_months: 3
