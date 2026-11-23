@@ -7,8 +7,8 @@ Runs two baselines on the same frame:
 * ``leakage_free`` - walk-forward month folds, past-only training encodings,
                    frozen train-period mappings, train-only preprocessing.
 
-The metric helpers here are intentionally local and small. Role 4 will replace
-them with ``src/evaluation/metrics.py`` in Phase 3.
+Metrics and plotting come from the Role 4 reference modules
+``src.evaluation.metrics`` / ``src.evaluation.plots``.
 
 Examples
 --------
@@ -31,23 +31,14 @@ from pathlib import Path
 # Allow `python scripts/<name>.py` from the repo root without PYTHONPATH setup.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    average_precision_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_curve,
-)
+
 from src.config import get_config, get_path
-from src.pipeline.leaky_baseline import BaselineResult, run_leakage_free_baseline, run_leaky_baseline
+from src.evaluation.metrics import compute_metrics_from_config, metrics_table
+from src.evaluation.plots import plot_metric_comparison
+from src.models.factories import MODEL_NAMES, build_model
+from src.pipeline.leaky_baseline import run_leakage_free_baseline, run_leaky_baseline
 from src.pipeline.preprocessing import infer_feature_columns
 from src.pipeline.splits import add_month_index, derive_datetime
 from src.utils.logger import setup_logger
@@ -66,7 +57,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="synthetic",
     )
     parser.add_argument("--data", type=str, default=None, help="CSV or parquet input")
-    parser.add_argument("--model", choices=("logreg", "rf", "xgboost"), default="logreg")
+    parser.add_argument("--model", choices=MODEL_NAMES, default="logreg")
     parser.add_argument("--test-size", type=float, default=0.2, help="Leaky random split size")
     parser.add_argument(
         "--include-global-aggregates",
@@ -149,87 +140,6 @@ def load_frame(args: argparse.Namespace, config: dict) -> tuple[pd.DataFrame, di
     return frame, {**dataset_cfg, "time_col": "timestamp"}
 
 
-def build_model(name: str, seed: int):
-    """Unfitted estimator; baselines clone it per fold."""
-    if name == "logreg":
-        return LogisticRegression(
-            max_iter=1000, class_weight="balanced", random_state=seed
-        )
-    if name == "rf":
-        return RandomForestClassifier(
-            n_estimators=100,
-            min_samples_leaf=5,
-            class_weight="balanced",
-            n_jobs=-1,
-            random_state=seed,
-        )
-    # Imported lazily so logreg/RF smoke tests work even if libomp is missing.
-    from xgboost import XGBClassifier
-
-    return XGBClassifier(
-        n_estimators=150,
-        max_depth=4,
-        learning_rate=0.1,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        eval_metric="logloss",
-        n_jobs=-1,
-        random_state=seed,
-    )
-
-
-def recall_at_fpr(
-    y_true: np.ndarray, y_score: np.ndarray, fpr_target: float
-) -> tuple[float, float, float]:
-    """Return (recall, achieved_fpr, threshold) at the requested FPR ceiling."""
-    if len(np.unique(y_true)) < 2:
-        return float("nan"), float("nan"), float("nan")
-    # Keep every threshold: drop_intermediate=True can remove all low-FPR points
-    # on small/imbalanced test sets, which would make recall@FPR undefined.
-    fpr, tpr, thresholds = roc_curve(y_true, y_score, drop_intermediate=False)
-    eligible = np.flatnonzero(fpr <= fpr_target)
-    if len(eligible) == 0:
-        # No score achieves the FPR ceiling: predict no positives at all.
-        return 0.0, 0.0, float(np.max(y_score) + 1.0)
-    best = int(eligible[np.argmax(tpr[eligible])])
-    threshold = float(thresholds[best])
-    if not np.isfinite(threshold):  # roc_curve's first point sits at +inf
-        threshold = float(np.max(y_score) + 1.0)
-    return float(tpr[best]), float(fpr[best]), threshold
-
-
-def compute_metrics(result: BaselineResult, config: dict) -> dict:
-    """Compute the project's primary metrics for one baseline result."""
-    y_true = result.y_true
-    y_score = result.y_score
-    recall, achieved_fpr, threshold = recall_at_fpr(
-        y_true, y_score, config["fpr_target"]
-    )
-    if np.isfinite(threshold):
-        y_pred = (y_score >= threshold).astype(int)
-        precision = float(precision_score(y_true, y_pred, zero_division=0))
-        f1 = float(f1_score(y_true, y_pred, zero_division=0))
-        recall_at_thr = float(recall_score(y_true, y_pred, zero_division=0))
-        false_pos = int(((y_pred == 1) & (y_true == 0)).sum())
-        false_neg = int(((y_pred == 0) & (y_true == 1)).sum())
-        cost = false_pos * config["cost_fp"] + false_neg * config["cost_fn"]
-    else:
-        precision = f1 = recall_at_thr = cost = float("nan")
-
-    return {
-        "setup": result.label,
-        "pr_auc": float(average_precision_score(y_true, y_score)),
-        "recall_at_fpr": recall,
-        "achieved_fpr": achieved_fpr,
-        "precision": precision,
-        "recall": recall_at_thr,
-        "f1": f1,
-        "cost_at_fpr": cost,
-        "fraud_base_rate": float(y_true.mean()),
-        "n_rows": result.n_rows,
-    }
-
-
 def save_outputs(table: pd.DataFrame, dataset: str, output_dir: Path) -> tuple[Path, Path]:
     tables = output_dir / "tables"
     figures = output_dir / "figures"
@@ -238,17 +148,12 @@ def save_outputs(table: pd.DataFrame, dataset: str, output_dir: Path) -> tuple[P
     csv_path = tables / f"leakage_comparison_{dataset}.csv"
     fig_path = figures / f"leakage_comparison_{dataset}.png"
     table.to_csv(csv_path, index=False)
-
-    metrics_to_plot = ["pr_auc", "recall_at_fpr"]
-    fig, axes = plt.subplots(1, len(metrics_to_plot), figsize=(10, 4), sharey=True)
-    for ax, metric in zip(np.atleast_1d(axes), metrics_to_plot):
-        ax.bar(table["setup"], table[metric], color=["#c44e52", "#4c72b0"])
-        ax.set_title(metric)
-        ax.grid(axis="y", alpha=0.3)
-    fig.suptitle(f"Leaky vs leakage-free ({dataset})")
-    fig.tight_layout()
-    fig.savefig(fig_path, dpi=150)
-    plt.close(fig)
+    plot_metric_comparison(
+        table,
+        ["pr_auc", "recall_at_fpr"],
+        fig_path,
+        title=f"Leaky vs leakage-free ({dataset})",
+    )
     return csv_path, fig_path
 
 
@@ -289,7 +194,7 @@ def main() -> None:
         numeric_cols=numeric_cols,
         categorical_cols=categorical_cols,
         target_encoded_cols=target_encoded_cols,
-        model=build_model(args.model, config["seed"]),
+        model=build_model(args.model, seed=config["seed"]),
         scale_numeric=(args.model == "logreg"),
     )
     group_col = categorical_cols[0] if categorical_cols and numeric_cols else None
@@ -318,7 +223,12 @@ def main() -> None:
     for summary in clean.fold_summaries:
         logger.info("fold %s", summary)
 
-    table = pd.DataFrame([compute_metrics(r, config) for r in (leaky, clean)])
+    table = metrics_table(
+        [
+            compute_metrics_from_config(r.y_true, r.y_score, config, setup=r.label)
+            for r in (leaky, clean)
+        ]
+    )
     csv_path, fig_path = save_outputs(table, args.dataset, output_root)
     logger.info("Saved %s and %s", csv_path, fig_path)
 
