@@ -5,6 +5,10 @@ data/processed/*
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 models/*.pkl
+# Generated logs and *synthetic* artifacts must never look like research results.
+results/logs/*.log
+results/tables/*synthetic*
+results/figures/*synthetic*
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
