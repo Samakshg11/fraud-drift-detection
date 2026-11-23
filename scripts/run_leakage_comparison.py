@@ -31,7 +31,6 @@ from pathlib import Path
 # Allow `python scripts/<name>.py` from the repo root without PYTHONPATH setup.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import numpy as np
 import pandas as pd
 
 from src.config import get_config, get_path
@@ -40,7 +39,7 @@ from src.evaluation.plots import plot_metric_comparison
 from src.models.factories import MODEL_NAMES, build_model
 from src.pipeline.leaky_baseline import run_leakage_free_baseline, run_leaky_baseline
 from src.pipeline.preprocessing import infer_feature_columns
-from src.pipeline.splits import add_month_index, derive_datetime
+from src.utils.inputs import load_prepared_frame
 from src.utils.logger import setup_logger
 from src.utils.seed import set_seed
 
@@ -66,78 +65,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", type=str, default=None)
     return parser
-
-
-def make_synthetic_demo(seed: int) -> pd.DataFrame:
-    """Generate a clearly-labelled synthetic frame; never a research result."""
-    rng = np.random.default_rng(seed)
-    n_per_month, months = 120, 12
-    month_offsets = np.repeat(np.arange(months), n_per_month)
-    base = pd.Timestamp("2019-01-01").to_period("M")
-    timestamps = []
-    for position, offset in enumerate(month_offsets):
-        within = position % n_per_month
-        timestamps.append(
-            (base + int(offset)).to_timestamp()
-            + pd.Timedelta(days=within % 28, hours=(within * 7) % 24)
-        )
-    times = pd.Series(pd.to_datetime(timestamps))
-    n = len(times)
-    amount = np.round(rng.lognormal(3.0, 0.6, n), 2)
-    merchant = rng.choice(["m_a", "m_b", "m_c", "m_d"], n)
-    rate = 0.005 + 0.02 * (month_offsets / (months - 1))
-    logit = np.log(rate / (1 - rate)) + 0.9 * (merchant == "m_a")
-    y = rng.binomial(1, 1 / (1 + np.exp(-logit)))
-
-    frame = pd.DataFrame(
-        {
-            "timestamp": times,
-            "TransactionID": np.arange(n),
-            "TransactionAmt": amount,
-            "card1": rng.integers(1000, 1100, n).astype(float),
-            "ProductCD": merchant,
-            "P_emaildomain": rng.choice(["gmail.com", "yahoo.com", None], n),
-            "isFraud": y,
-        }
-    )
-    return add_month_index(frame, time_col="timestamp").sort_values(
-        "timestamp", kind="stable"
-    )
-
-
-def load_frame(args: argparse.Namespace, config: dict) -> tuple[pd.DataFrame, dict]:
-    """Load the requested frame and return it with datetime + month columns."""
-    if args.dataset == "synthetic":
-        return make_synthetic_demo(config["seed"]), {
-            "target_col": "isFraud",
-            "time_col": "timestamp",
-            "key_col": "TransactionID",
-            "source_time_col": "TransactionDT",
-        }
-
-    dataset_cfg = config["datasets"][args.dataset]
-    path = Path(args.data) if args.data else get_path(config, "interim_dir") / f"{args.dataset}.parquet"
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Input data not found: {path}. Place raw datasets in data/raw/ and "
-            f"run the Role 1 loading script, or pass --data explicitly."
-        )
-    frame = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
-
-    target_col = dataset_cfg["target_col"]
-    source_time_col = dataset_cfg["source_time_col"]
-    if "timestamp" in frame.columns:
-        frame["timestamp"] = pd.to_datetime(frame["timestamp"])
-    else:
-        frame["timestamp"] = derive_datetime(
-            frame[source_time_col],
-            reference_date=config["ieee_reference_date"],
-            time_unit=dataset_cfg["time_unit"],
-        )
-    if "month" not in frame.columns:
-        frame = add_month_index(frame, time_col="timestamp")
-    frame = frame.sort_values("timestamp", kind="stable").reset_index(drop=True)
-    return frame, {**dataset_cfg, "time_col": "timestamp"}
 
 
 def save_outputs(table: pd.DataFrame, dataset: str, output_dir: Path) -> tuple[Path, Path]:
@@ -170,7 +97,9 @@ def main() -> None:
         log_file=logs_dir / f"leakage_comparison_{args.dataset}.log",
     )
 
-    frame, meta = load_frame(args, config)
+    frame, meta = load_prepared_frame(
+        config, dataset=args.dataset, data_path=args.data
+    )
     target_col = meta["target_col"]
     time_col = meta["time_col"]
     key_col = meta.get("key_col")
