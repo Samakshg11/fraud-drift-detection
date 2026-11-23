@@ -26,6 +26,17 @@ cost_fp: 1.0                   # cost of one false alarm
 cost_fn: 10.0                  # cost of one missed fraud
 primary_metric: "pr_auc"
 
+# Drift-aware retraining (Role 6). All windows are in calendar months.
+retraining:
+  periodic_months: 1
+  sliding_window_months: 3
+  drift_method: "adwin"
+  drift_params:
+    delta: 0.05
+    min_window_length: 5
+    grace_period: 5
+  half_life_months: 3
+
 # Logging.
 logging:
   level: "INFO"
