@@ -1,5 +1,77 @@
+# ---------------------------------------------------------------------------
+# Global configuration for the leakage-free fraud-detection pipeline.
+# All values are intentionally explicit here so code contains no magic numbers.
+# ---------------------------------------------------------------------------
+
+# Reproducibility: used by random, numpy, model estimators and split generation.
 seed: 42
+
+# IEEE-CIS TransactionDT is a seconds offset from an UNKNOWN reference date.
+# We fix a reference date here; only absolute month labels depend on it, never
+# the leakage properties of the pipeline.
+ieee_reference_date: "2017-12-01"
+
+# Chronological splitting / walk-forward evaluation (Role 2).
 split:
+  time_col: "timestamp"        # canonical column produced by data preparation
   train_months: 3
   test_months: 1
-sliding_window_months: 3
+  gap_days: 0                  # embargo for late-arriving fraud labels
+  scheme: "expanding"          # expanding | sliding
+  sliding_window_months: 3
+
+# Evaluation (Role 4 consumes these; Role 2 uses them in the comparison script).
+fpr_target: 0.01
+cost_fp: 1.0                   # cost of one false alarm
+cost_fn: 10.0                  # cost of one missed fraud
+primary_metric: "pr_auc"
+
+# Drift-aware retraining (Role 6). All windows are in calendar months.
+retraining:
+  periodic_months: 1
+  sliding_window_months: 3
+  drift_method: "adwin"
+  drift_params:
+    delta: 0.05
+    min_window_length: 5
+    grace_period: 5
+  half_life_months: 3
+
+# Preprocessing: group rare categories into an "infrequent" bucket so one-hot
+# encoding stays tractable on real data (merchant, city, job, dob in Sparkov).
+preprocessing:
+  one_hot_min_frequency: 100
+
+# Logging.
+logging:
+  level: "INFO"
+  format: "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+
+# Paths are resolved relative to the repository root by src.config.get_path().
+paths:
+  raw_dir: "data/raw"
+  interim_dir: "data/interim"
+  processed_dir: "data/processed"
+  results_dir: "results"
+  figures_dir: "results/figures"
+  tables_dir: "results/tables"
+  logs_dir: "results/logs"
+  models_dir: "models"
+
+# Dataset metadata. Raw files are NOT in the repo; teammates fill them in.
+datasets:
+  ieee_cis:
+    raw_dir: "data/raw/ieee_cis"
+    train_file: "train_transaction.csv"
+    source_time_col: "TransactionDT"
+    time_unit: "seconds"
+    target_col: "isFraud"
+    key_col: "TransactionID"
+  sparkov:
+    raw_dir: "data/raw/sparkov"
+    train_file: "fraudTrain.csv"
+    test_file: "fraudTest.csv"
+    source_time_col: "trans_date_trans_time"
+    time_unit: "datetime"
+    target_col: "is_fraud"
+    key_col: "trans_num"
