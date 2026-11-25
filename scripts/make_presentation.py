@@ -204,14 +204,14 @@ def main() -> None:
 
     # 3 — Objectives (explicitly required)
     slide = prs.slides.add_slide(blank)
-    add_header(slide, "Three Objectives", "All three are implemented; results shown on Sparkov")
+    add_header(slide, "Three Objectives", "All three objectives are DONE - results shown on Sparkov")
     add_table(
         slide,
         ["#", "Objective", "Status"],
         [
-            ["1", "Build a leakage-free, time-aware evaluation pipeline on long-horizon data and quantify metric inflation versus a deliberately leaky baseline.", "Implemented + results"],
-            ["2", "Measure month-by-month degradation of a static fraud model using drift diagnostics (PSI, KS, ADWIN / DDM / Page-Hinkley).", "Implemented + results"],
-            ["3", "Compare drift-aware retraining strategies (static, periodic, sliding window, drift-triggered, recency-weighted) under one walk-forward protocol.", "Implemented + results"],
+            ["1", "Build a leakage-free, time-aware evaluation pipeline on long-horizon data and quantify metric inflation versus a deliberately leaky baseline.", "DONE - results on Sparkov"],
+            ["2", "Measure month-by-month degradation of a static fraud model using drift diagnostics (PSI, KS, ADWIN / DDM / Page-Hinkley).", "DONE - results on Sparkov"],
+            ["3", "Compare drift-aware retraining strategies (static, periodic, sliding window, drift-triggered, recency-weighted) under one walk-forward protocol.", "DONE - results on Sparkov"],
         ],
         0.7, 1.9, 12.0, 4.4, font_size=15,
     )

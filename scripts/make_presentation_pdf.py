@@ -132,13 +132,13 @@ def build() -> None:
     story.append(PageBreak())
 
     # 3
-    story += heading("Three Objectives", "All three implemented; results shown on Sparkov")
+    story += heading("Three Objectives", "All three objectives are DONE - results shown on Sparkov")
     story.append(table(
         ["#", "Objective", "Status"],
         [
-            ["1", "Build a leakage-free, time-aware evaluation pipeline on long-horizon data and quantify metric inflation vs a deliberately leaky baseline.", "Implemented + results"],
-            ["2", "Measure month-by-month degradation of a static model using drift diagnostics (PSI, KS, ADWIN/DDM/Page-Hinkley).", "Implemented + results"],
-            ["3", "Compare drift-aware retraining strategies (static, periodic, sliding, drift-triggered, weighted) under one walk-forward protocol.", "Implemented + results"],
+            ["1", "Build a leakage-free, time-aware evaluation pipeline on long-horizon data and quantify metric inflation vs a deliberately leaky baseline.", "DONE - results on Sparkov"],
+            ["2", "Measure month-by-month degradation of a static model using drift diagnostics (PSI, KS, ADWIN/DDM/Page-Hinkley).", "DONE - results on Sparkov"],
+            ["3", "Compare drift-aware retraining strategies (static, periodic, sliding, drift-triggered, weighted) under one walk-forward protocol.", "DONE - results on Sparkov"],
         ], [0.5, 9.6, 2.0],
     ))
     story.append(PageBreak())
