@@ -13,3 +13,4 @@ shap
 pyyaml
 pytest
 pyarrow
+python-pptx
