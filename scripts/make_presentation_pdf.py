@@ -112,8 +112,8 @@ def build() -> None:
               Paragraph("Machine Learning on Long-Horizon Transaction Data", SUBTITLE),
               Spacer(1, 0.4 * inch)]
     story += bullets([
-        "Group project — Sparkov: 1.85 M transactions, 24 months",
-        "Fraud base rate 0.521% - 21 walk-forward folds",
+        "Group project — Sparkov (1.85 M rows, 24 months) + IEEE-CIS (590 K rows, 7 months)",
+        "Two real datasets - 21 and 4 walk-forward folds",
         "November 2026",
     ])
     story.append(PageBreak())
@@ -167,7 +167,8 @@ def build() -> None:
         "Model: Logistic Regression, class_weight='balanced', scaling enabled.",
         "High-cardinality categoricals target-encoded; rare one-hot categories capped at 100.",
         "Control: identical features under a deliberately leaky protocol for comparison.",
-        "Reproducibility: seed 42, config-driven, 55 automated tests pass.",
+        "Second dataset: IEEE-CIS, 590,540 rows, 7 months, 3.5% fraud, 4 folds.",
+        "Reproducibility: seed 42, config-driven, 80 automated tests pass.",
     ], SMALL)
     story.append(PageBreak())
 
@@ -215,9 +216,27 @@ def build() -> None:
     story.append(PageBreak())
 
     # 9
+    story += heading("Second Dataset - IEEE-CIS Confirmation", "590,540 transactions, 7 months, 3.5% fraud, 4 folds")
+    story.append(table(
+        ["Dataset", "Leaky PR-AUC", "Leakage-free PR-AUC", "Inflation"],
+        [
+            ["Sparkov (21 folds)", "0.2275", "0.0061", "~37x"],
+            ["IEEE-CIS (4 folds)", "0.4321", "0.2519", "~1.7x"],
+        ], [3.0, 2.6, 3.4, 2.0],
+    ))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(image(FIGURES / "leakage_comparison_ieee_cis.png", 7.5, 3.2))
+    story += bullets([
+        "Leakage inflation reproduced on two independent datasets.",
+        "IEEE static PR-AUC 0.424 -> 0.174 (last month has 2,754 rows).",
+        "Best strategy: sliding 0.3797; weighted recall 0.2723.",
+    ], SMALL)
+    story.append(PageBreak())
+
+    # 10
     story += heading("Discussion - Key Findings", "What the experiments mean for fraud research")
     story += bullets([
-        "Leakage, not model choice, dominates reported performance: PR-AUC drops 37x under a correct protocol.",
+        "Leakage, not model choice, dominates performance: PR-AUC drops 37x (Sparkov) and 1.7x (IEEE).",
         "Marginal features look stable (PSI ~ 0), yet a static model degrades monthly - concept drift is the real problem.",
         "Sliding-window retraining gives the best PR-AUC/cost trade-off; static is ~30x cheaper but weaker.",
         "Recency weighting maximises recall at a 1% false-positive rate, relevant to chargeback budgets.",
@@ -226,24 +245,24 @@ def build() -> None:
     ], SMALL)
     story.append(PageBreak())
 
-    # 10
+    # 11
     story += heading("Limitations & Future Work", "Say this before the examiner asks")
     story += bullets([
-        "IEEE-CIS unavailable (Kaggle verification) — results from one dataset only.",
+        "Both datasets used; IEEE has 7 months and a partial last month, so fewer folds.",
         "All runs use Logistic Regression; XGBoost/RF too slow on 8 GB RAM.",
         "gap_days = 0; real chargeback-lag embargo still to be set.",
-        "Drift-trigger alerts are noisy at 0.5% fraud; thresholds need calibration.",
+        "Drift-trigger alerts are noisy; thresholds need calibration.",
         "Literature review (2 papers per member) still pending.",
-        "Next: second dataset, tree models, walk-forward tuning, final paper.",
+        "Next: longer IEEE history, tree models, walk-forward tuning, final paper.",
     ], SMALL)
     story.append(PageBreak())
 
-    # 11
+    # 12
     story += heading("Conclusion")
     story += bullets([
-        "Built a fully leakage-free, time-aware pipeline with 55 passing tests.",
-        "Quantified leakage inflation: PR-AUC 0.2275 → 0.0061 (≈37×) on 1.85 M transactions.",
-        "Showed a static model degrades across 21 months (0.0105 → 0.0045 PR-AUC).",
+        "Built a fully leakage-free, time-aware pipeline; 80 tests pass.",
+        "Leakage inflation on two datasets: 0.2275 -> 0.0061 (Sparkov) and 0.4321 -> 0.2519 (IEEE).",
+        "Showed static models degrade month by month on both datasets.",
         "Compared five retraining strategies; sliding window gives the best PR-AUC/cost trade-off.",
         "Reproducible: config-driven, seeded, scripts + results + experiment log in the repo.",
     ])

@@ -177,8 +177,8 @@ def main() -> None:
     )
     add_text(
         slide,
-        "Group project  |  Sparkov: 1.85 M transactions, 24 months\n"
-        "Fraud base rate 0.521%  |  21 walk-forward folds  |  November 2026",
+        "Group project  |  Sparkov (1.85 M rows, 24 months) + IEEE-CIS (590 K rows, 7 months)\n"
+        "November 2026",
         0.9, 4.8, 11.5, 1.4, size=17, color=GREY,
     )
     notes(slide, "Open by stating the problem: fraud papers over-report accuracy because of leakage, and short datasets cannot show drift. Our project fixes both and measures the damage.")
@@ -246,7 +246,8 @@ def main() -> None:
             "Model: Logistic Regression with class_weight='balanced'; scaling enabled.",
             "High-cardinality categoricals target-encoded; rare one-hot categories capped at 100.",
             "Control: identical features under a deliberately leaky protocol for comparison.",
-            "Reproducibility: fixed seed 42, config-driven, 55 automated tests pass.",
+            "Second dataset: IEEE-CIS, 590,540 rows, 7 months, 3.5% fraud, 4 folds.",
+            "Reproducibility: fixed seed 42, config-driven, 80 automated tests pass.",
         ],
         0.8, 1.8, 11.8, 5.0, size=16,
     )
@@ -311,13 +312,38 @@ def main() -> None:
     )
     notes(slide, "Drift-triggered retrained every fold because the detector kept firing; that is a tuning problem, not evidence that drift triggers are useless. Be transparent about it.")
 
-    # 9 — Discussion
+    # 9 — Second dataset confirmation
+    slide = prs.slides.add_slide(blank)
+    add_header(slide, "Second Dataset — IEEE-CIS Confirmation", "590,540 transactions, 7 months, 3.5% fraud, 4 walk-forward folds")
+    add_table(
+        slide,
+        ["Dataset", "Leaky PR-AUC", "Leakage-free PR-AUC", "Inflation"],
+        [
+            ["Sparkov (21 folds)", "0.2275", "0.0061", "~37×"],
+            ["IEEE-CIS (4 folds)", "0.4321", "0.2519", "~1.7×"],
+        ],
+        0.7, 1.75, 11.9, 1.5, font_size=15,
+    )
+    add_image_fit(slide, FIGURES / "leakage_comparison_ieee_cis.png", 0.8, 3.6, 6.2, 2.8)
+    add_bullets(
+        slide,
+        [
+            "Leakage inflation reproduced on two independent datasets.",
+            "IEEE static PR-AUC: 0.424 → 0.174 (final month has only 2,754 rows).",
+            "Best strategy: sliding window 0.3797; weighted recall 0.2723.",
+            "IEEE covers 7 months, so fewer folds than Sparkov.",
+        ],
+        7.2, 3.6, 5.4, 2.9, size=14,
+    )
+    notes(slide, "This slide removes the single-dataset limitation: the leakage finding replicates on Vesta transaction data too. Be clear that IEEE has only 7 months and a partial last month.")
+
+    # 10 — Discussion
     slide = prs.slides.add_slide(blank)
     add_header(slide, "Discussion — Key Findings", "What the experiments mean for fraud research")
     add_bullets(
         slide,
         [
-            "Leakage, not model choice, dominates the reported performance: PR-AUC drops 37× under a correct protocol.",
+            "Leakage, not model choice, dominates reported performance: PR-AUC drops 37× (Sparkov) and 1.7× (IEEE) under a correct protocol.",
             "Marginal feature distributions look stable (PSI ≈ 0), yet a static model degrades month by month — concept drift is the real problem.",
             "Sliding-window retraining gives the best PR-AUC/cost trade-off; a static model is ~30× cheaper but weaker.",
             "Recency weighting maximises recall at a 1% false-positive rate, which matters under chargeback budgets.",
@@ -328,32 +354,32 @@ def main() -> None:
     )
     notes(slide, "This slide connects the three objectives into one story: evaluation validity first, then degradation, then adaptation strategy.")
 
-    # 10 — Limitations
+    # 11 — Limitations
     slide = prs.slides.add_slide(blank)
     add_header(slide, "Limitations & Future Work", "Say this before the examiner asks")
     add_bullets(
         slide,
         [
-            "IEEE-CIS dataset unavailable (Kaggle verification failed) — results are from one dataset only.",
+            "Both datasets used; IEEE-CIS has 7 months and a partial last month, so fewer folds.",
             "All reported runs use Logistic Regression; XGBoost/RF were too slow on 8 GB RAM.",
             "gap_days = 0; real chargeback-lag embargo still to be set.",
-            "Drift-trigger alerts are noisy at 0.5% fraud; thresholds need calibration.",
+            "Drift-trigger alerts are noisy; thresholds need calibration.",
             "Literature review (2 papers per member) is still pending.",
-            "Next: second dataset, tree models, walk-forward hyperparameter tuning, final paper.",
+            "Next: longer IEEE history, tree models, walk-forward tuning, final paper.",
         ],
         0.8, 1.8, 11.8, 5.0,
     )
     notes(slide, "Being explicit about limitations builds credibility. The contribution is the methodology and the measured inflation, not a state-of-the-art score.")
 
-    # 11 — Conclusion
+    # 12 — Conclusion
     slide = prs.slides.add_slide(blank)
     add_header(slide, "Conclusion")
     add_bullets(
         slide,
         [
-            "Built a fully leakage-free, time-aware evaluation pipeline with 55 passing tests.",
-            "Quantified leakage inflation: PR-AUC 0.2275 → 0.0061 (≈37×) on 1.85 M transactions.",
-            "Showed a static fraud model degrades across 21 months (0.0105 → 0.0045 PR-AUC).",
+            "Built a fully leakage-free, time-aware evaluation pipeline; 80 tests pass.",
+            "Quantified leakage inflation on two datasets: 0.2275 → 0.0061 (Sparkov) and 0.4321 → 0.2519 (IEEE).",
+            "Showed static models degrade month by month on both datasets.",
             "Compared five retraining strategies; sliding window gives the best PR-AUC/cost trade-off.",
             "Reproducible: config-driven, seeded, scripts + results + experiment log in the repo.",
         ],
