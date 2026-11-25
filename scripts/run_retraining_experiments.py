@@ -34,7 +34,13 @@ from src.utils.logger import setup_logger
 from src.utils.seed import set_seed
 
 STRATEGIES = ("static", "periodic", "sliding_window", "drift_triggered", "weighted")
-_META_HINTS = ("timestamp", "unix_time", "transactiondt", "trans_date_trans_time")
+_META_HINTS = (
+    "timestamp",
+    "unix_time",
+    "transactiondt",
+    "trans_date_trans_time",
+    "unnamed:",
+)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -56,6 +62,7 @@ def make_strategy(name: str, config: dict, *, model: object, numeric: list[str],
         categorical_cols=categorical,
         target_col=target,
         scale_numeric=(model_name == "logreg"),
+        one_hot_min_frequency=config["preprocessing"]["one_hot_min_frequency"],
     )
     cfg = config["retraining"]
     if name == "static":

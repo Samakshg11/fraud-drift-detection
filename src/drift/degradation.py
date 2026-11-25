@@ -25,6 +25,7 @@ def static_degradation_curve(
     time_col: str = "timestamp",
     month_col: str = "month",
     scale_numeric: bool = False,
+    one_hot_min_frequency: int | None = None,
 ) -> pd.DataFrame:
     """Train ONCE on the first ``train_months`` and score every later month.
 
@@ -41,7 +42,12 @@ def static_degradation_curve(
     y_train = train[target_col].to_numpy()
     features = [*numeric_cols, *categorical_cols]
 
-    preprocessor = build_preprocessor(numeric_cols, categorical_cols, scale_numeric=scale_numeric)
+    preprocessor = build_preprocessor(
+        numeric_cols,
+        categorical_cols,
+        scale_numeric=scale_numeric,
+        min_frequency=one_hot_min_frequency,
+    )
     matrix_train = preprocessor.fit_transform(train[features])
     fitted = clone(model)
     fitted.fit(matrix_train, y_train)

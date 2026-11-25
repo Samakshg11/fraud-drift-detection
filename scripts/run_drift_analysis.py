@@ -29,7 +29,13 @@ from src.utils.inputs import load_prepared_frame
 from src.utils.logger import setup_logger
 from src.utils.seed import set_seed
 
-_META_HINTS = ("timestamp", "unix_time", "transactiondt", "trans_date_trans_time")
+_META_HINTS = (
+    "timestamp",
+    "unix_time",
+    "transactiondt",
+    "trans_date_trans_time",
+    "unnamed:",
+)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -100,7 +106,11 @@ def main() -> None:
     ks_table_all = pd.DataFrame(ks_rows)
 
     # Error stream from one static model; detectors see only 0/1 mistakes.
-    preprocessor = build_preprocessor(numeric_cols, categorical_cols)
+    preprocessor = build_preprocessor(
+        numeric_cols,
+        categorical_cols,
+        min_frequency=config["preprocessing"]["one_hot_min_frequency"],
+    )
     matrix_train = preprocessor.fit_transform(reference[[*numeric_cols, *categorical_cols]])
     static_model = clone(build_model(args.model, seed=config["seed"]))
     static_model.fit(matrix_train, reference[target_col].to_numpy())
@@ -142,6 +152,7 @@ def main() -> None:
         cost_fp=config["cost_fp"],
         cost_fn=config["cost_fn"],
         scale_numeric=(args.model == "logreg"),
+        one_hot_min_frequency=config["preprocessing"]["one_hot_min_frequency"],
     )
 
     paths = {

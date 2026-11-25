@@ -44,7 +44,13 @@ from src.utils.logger import setup_logger
 from src.utils.seed import set_seed
 
 # Metadata columns that must never be used as plain model features.
-_META_HINTS = ("timestamp", "unix_time", "transactiondt", "trans_date_trans_time")
+_META_HINTS = (
+    "timestamp",
+    "unix_time",
+    "transactiondt",
+    "trans_date_trans_time",
+    "unnamed:",  # index column written into Sparkov CSVs by Kaggle
+)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -110,8 +116,17 @@ def main() -> None:
     numeric_cols, categorical_cols = infer_feature_columns(frame, exclude=exclude)
 
     cardinalities = {c: int(frame[c].nunique(dropna=True)) for c in categorical_cols}
+    # High-cardinality columns (merchant, city, job, dob in Sparkov) must be
+    # target-encoded rather than one-hot encoded, otherwise the design matrix
+    # explodes. With small-cardinality data (synthetic demo), encode the smallest.
+    high_cardinality = [c for c, k in cardinalities.items() if k > 50]
     eligible = [c for c, k in cardinalities.items() if 1 < k <= 50]
-    target_encoded_cols = sorted(eligible, key=lambda c: cardinalities[c])[:1]
+    if high_cardinality:
+        target_encoded_cols = sorted(
+            high_cardinality, key=lambda c: cardinalities[c], reverse=True
+        )[:2]
+    else:
+        target_encoded_cols = sorted(eligible, key=lambda c: cardinalities[c])[:1]
     logger.info(
         "rows=%d, numeric=%d, categorical=%d, target-encoded=%s",
         len(frame), len(numeric_cols), len(categorical_cols), target_encoded_cols,

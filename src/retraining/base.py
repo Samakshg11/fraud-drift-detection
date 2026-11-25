@@ -32,6 +32,7 @@ class RetrainingStrategy(ABC):
         time_col: str = "timestamp",
         month_col: str = "month",
         scale_numeric: bool = False,
+        one_hot_min_frequency: int | None = None,
     ) -> None:
         self.model = model
         self.numeric_cols = list(numeric_cols)
@@ -41,6 +42,7 @@ class RetrainingStrategy(ABC):
         self.time_col = time_col
         self.month_col = month_col
         self.scale_numeric = scale_numeric
+        self.one_hot_min_frequency = one_hot_min_frequency
 
         self.model_: object | None = None
         self.preprocessor_: object | None = None
@@ -72,7 +74,10 @@ class RetrainingStrategy(ABC):
             raise ValueError("Cannot fit on an empty training frame")
         y = train_df[self.target_col].to_numpy()
         self.preprocessor_ = build_preprocessor(
-            self.numeric_cols, self.categorical_cols, scale_numeric=self.scale_numeric
+            self.numeric_cols,
+            self.categorical_cols,
+            scale_numeric=self.scale_numeric,
+            min_frequency=self.one_hot_min_frequency,
         )
         matrix = self.preprocessor_.fit_transform(train_df[self.features])
         self.model_ = clone(self.model)

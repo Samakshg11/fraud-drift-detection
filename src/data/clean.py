@@ -72,6 +72,11 @@ def clean_dataset(
 ) -> pd.DataFrame:
     """Downcast, derive timestamp + month index, and sort chronologically."""
     out = build_timestamp(frame, config, dataset_name, out_col=time_col)
+    # Kaggle CSVs often carry an unnamed row-index column; it is metadata,
+    # not a transaction feature (and can look like extreme drift).
+    unnamed = [c for c in out.columns if str(c).lower().startswith("unnamed")]
+    if unnamed:
+        out = out.drop(columns=unnamed)
     if "month" not in out.columns:
         out = add_month_index(out, time_col=time_col)
     if sort:

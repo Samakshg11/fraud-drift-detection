@@ -37,6 +37,11 @@ retraining:
     grace_period: 5
   half_life_months: 3
 
+# Preprocessing: group rare categories into an "infrequent" bucket so one-hot
+# encoding stays tractable on real data (merchant, city, job, dob in Sparkov).
+preprocessing:
+  one_hot_min_frequency: 100
+
 # Logging.
 logging:
   level: "INFO"
