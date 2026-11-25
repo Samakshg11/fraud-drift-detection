@@ -9,6 +9,7 @@ Output: docs/project_presentation.pptx (16:9, with speaker notes).
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from pptx.util import Inches, Pt
 ROOT = Path(__file__).resolve().parents[1]
 FIGURES = ROOT / "results" / "figures"
 OUTPUT = ROOT / "docs" / "project_presentation.pptx"
+
+_ADD_NOTES = True
 
 NAVY = RGBColor(23, 42, 69)
 BLUE = RGBColor(44, 108, 176)
@@ -143,10 +146,18 @@ def add_image_fit(slide, path: Path, left: float, top: float, width: float, heig
 
 
 def notes(slide, text: str) -> None:
-    slide.notes_slide.notes_text_frame.text = text
+    if _ADD_NOTES:
+        slide.notes_slide.notes_text_frame.text = text
 
 
 def main() -> None:
+    global _ADD_NOTES
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-notes", action="store_true", help="Omit speaker notes")
+    parser.add_argument("--output", type=str, default=str(OUTPUT))
+    args = parser.parse_args()
+    _ADD_NOTES = not args.no_notes
+
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
@@ -354,9 +365,10 @@ def main() -> None:
     add_text(slide, "Thank you — questions?", 0.9, 6.4, 11.5, 0.7, size=24, bold=True, color=BLUE)
     notes(slide, "Close on the contribution: a defensible evaluation protocol for fraud detection on long horizons, plus a measured demonstration of how badly leakage distorts results.")
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    prs.save(OUTPUT)
-    print(f"Created {OUTPUT} ({len(prs.slides)} slides)")
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(output)
+    print(f"Created {output} ({len(prs.slides)} slides)")
 
 
 if __name__ == "__main__":
