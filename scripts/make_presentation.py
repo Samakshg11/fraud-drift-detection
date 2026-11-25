@@ -177,9 +177,8 @@ def main() -> None:
     )
     add_text(
         slide,
-        "Group project (6 roles)  |  Role 2: Leakage-Free Pipeline Lead\n"
-        "Dataset used for results: Sparkov, 1.85 M transactions, 24 months\n"
-        "November 2026",
+        "Group project  |  Sparkov: 1.85 M transactions, 24 months\n"
+        "Fraud base rate 0.521%  |  21 walk-forward folds  |  November 2026",
         0.9, 4.8, 11.5, 1.4, size=17, color=GREY,
     )
     notes(slide, "Open by stating the problem: fraud papers over-report accuracy because of leakage, and short datasets cannot show drift. Our project fixes both and measures the damage.")
@@ -217,42 +216,41 @@ def main() -> None:
     )
     notes(slide, "These are the exact three objectives. The invigilator asked for at least 1.5 done — we have implementation and real evidence for all three, with the caveat that only one dataset was available.")
 
-    # 4 — Architecture
+    # 4 — Methodology
     slide = prs.slides.add_slide(blank)
-    add_header(slide, "Project Architecture", "Six roles, one chronological evaluation backbone")
+    add_header(slide, "Methodology — Leakage-Free Evaluation", "How future information is kept out of training")
     add_table(
         slide,
-        ["Stage", "Module / Owner", "What it does"],
+        ["Stage", "Component", "Leakage control"],
         [
-            ["Raw → interim", "Role 1: src/data", "Load CSVs, drop index artifact, timestamp + month, downcast, save parquet"],
-            ["Chronological splits", "Role 2: src/pipeline/splits.py", "Month windows, walk-forward, embargo, temporal ordering assertion"],
-            ["Train-only state", "Role 2: encoders + preprocessing", "Past-only target/frequency encoding; impute/scale/one-hot fitted per fold"],
-            ["Past-only features", "Role 3: src/features", "Rolling 24h/7D aggregates, velocity, cyclic time features"],
-            ["Models + metrics", "Role 4: src/models, src/evaluation", "LogReg/RF/XGBoost factories; PR-AUC, recall@FPR, cost, base rate"],
-            ["Drift + retraining", "Roles 5–6: src/drift, src/retraining", "PSI/KS/detectors, degradation curve, five retraining strategies"],
+            ["Raw → interim", "Data preparation", "Drop Kaggle index column; derive timestamp + month; downcast; parquet"],
+            ["Splitting", "Chronological walk-forward", "Month windows, expanding/sliding, embargo, max(train) < min(test)"],
+            ["Encoding", "Time-aware encoders", "Expanding past-only values for train; frozen train mapping for test"],
+            ["Preprocessing", "ColumnTransformer", "Imputer, scaler and one-hot fitted on each training fold only"],
+            ["Features", "Past-only aggregates", "Rolling 24h/7D with closed='left'; current row excluded"],
+            ["Evaluation", "Metrics + tuning", "PR-AUC, recall@1%FPR, cost, base rate; walk-forward CV only"],
         ],
         0.6, 1.75, 12.1, 4.7, font_size=13,
     )
-    notes(slide, "Only Role 2 is fully owned by me; the other modules are reference implementations that teammates may replace. The interfaces are stable so that works.")
+    notes(slide, "This is the methodological spine of the project. Every learned object is fitted on the training fold and only transforms the test fold.")
 
-    # 5 — Role 2 detail
+    # 5 — Experimental setup
     slide = prs.slides.add_slide(blank)
-    add_header(slide, "My Work — Role 2: Leakage-Free Pipeline", "The part I can defend line by line")
+    add_header(slide, "Experimental Setup", "Sparkov, walk-forward protocol and model configuration")
     add_bullets(
         slide,
         [
-            "Month index = year×12 + month−1; December→January is correct.",
-            "walk_forward_splits(): expanding or sliding, non-overlapping test blocks, 21 folds on Sparkov.",
-            "Every split asserts max(train_time) < min(test_time); gap_days adds a chargeback embargo.",
-            "TimeAwareTargetEncoder: expanding, strictly-earlier values for training rows; frozen train-period mapping for test rows.",
-            "Same-timestamp rows never encode each other; unseen test categories fall back to the prior.",
-            "ColumnTransformer (imputer / scaler / one-hot) fitted on each training fold only.",
-            "leaky_baseline.py is quarantined with warnings — used only to measure inflation.",
-            "25 dedicated leakage tests; 55 tests pass in total.",
+            "Dataset: Sparkov simulated transactions, 1,852,394 rows, Jan 2019 – Dec 2020 (24 months).",
+            "Target is_fraud: 9,651 positives, base rate 0.521% — accuracy is never reported.",
+            "Protocol: 3 train months / 1 test month, expanding, gap_days = 0 → 21 folds.",
+            "Model: Logistic Regression with class_weight='balanced'; scaling enabled.",
+            "High-cardinality categoricals target-encoded; rare one-hot categories capped at 100.",
+            "Control: identical features under a deliberately leaky protocol for comparison.",
+            "Reproducibility: fixed seed 42, config-driven, 55 automated tests pass.",
         ],
         0.8, 1.8, 11.8, 5.0, size=16,
     )
-    notes(slide, "Key viva point: at scoring time we do not know earlier test labels, so updating encoders on test data would itself be leakage. That is why fit_transform and transform deliberately differ.")
+    notes(slide, "Make clear that the leaky and leakage-free runs use the same model and features; only the evaluation protocol differs. That isolates the effect of leakage.")
 
     # 6 — Objective 1 results
     slide = prs.slides.add_slide(blank)
@@ -313,23 +311,22 @@ def main() -> None:
     )
     notes(slide, "Drift-triggered retrained every fold because the detector kept firing; that is a tuning problem, not evidence that drift triggers are useless. Be transparent about it.")
 
-    # 9 — Role contributions
+    # 9 — Discussion
     slide = prs.slides.add_slide(blank)
-    add_header(slide, "Team Contributions", "Each member explains their own module")
-    add_table(
+    add_header(slide, "Discussion — Key Findings", "What the experiments mean for fraud research")
+    add_bullets(
         slide,
-        ["Role", "Owner", "Deliverable"],
         [
-            ["1 — Data Engineer", "__________", "Loading, cleaning, parquet, EDA; prepare_data.py"],
-            ["2 — Pipeline Lead (me)", "__________", "Splits, encoders, preprocessing, leaky baseline, leakage tests"],
-            ["3 — Features", "__________", "Past-only aggregates, time features, leakage checks"],
-            ["4 — Modeling", "__________", "Model factories, metrics, plots, tuning"],
-            ["5 — Drift", "__________", "PSI, KS, ADWIN/DDM/PH, degradation curve"],
-            ["6 — Retraining + report", "__________", "Strategies, cost tracking, scripts, paper"],
+            "Leakage, not model choice, dominates the reported performance: PR-AUC drops 37× under a correct protocol.",
+            "Marginal feature distributions look stable (PSI ≈ 0), yet a static model degrades month by month — concept drift is the real problem.",
+            "Sliding-window retraining gives the best PR-AUC/cost trade-off; a static model is ~30× cheaper but weaker.",
+            "Recency weighting maximises recall at a 1% false-positive rate, which matters under chargeback budgets.",
+            "Naive drift triggers fire constantly at this fraud base rate — thresholds must be calibrated before use.",
+            "Practical implication: report leakage-free walk-forward results with base rate, never accuracy.",
         ],
-        0.7, 1.85, 12.0, 4.6, font_size=15,
+        0.8, 1.8, 11.8, 5.0,
     )
-    notes(slide, "Fill in the owner names before presenting. Roles 1, 3, 4, 5 and 6 are reference implementations in this repo and their owners may replace them.")
+    notes(slide, "This slide connects the three objectives into one story: evaluation validity first, then degradation, then adaptation strategy.")
 
     # 10 — Limitations
     slide = prs.slides.add_slide(blank)
@@ -354,7 +351,7 @@ def main() -> None:
     add_bullets(
         slide,
         [
-            "Built a fully leakage-free, time-aware evaluation pipeline (Role 2) with 55 passing tests.",
+            "Built a fully leakage-free, time-aware evaluation pipeline with 55 passing tests.",
             "Quantified leakage inflation: PR-AUC 0.2275 → 0.0061 (≈37×) on 1.85 M transactions.",
             "Showed a static fraud model degrades across 21 months (0.0105 → 0.0045 PR-AUC).",
             "Compared five retraining strategies; sliding window gives the best PR-AUC/cost trade-off.",

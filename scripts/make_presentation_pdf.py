@@ -112,8 +112,8 @@ def build() -> None:
               Paragraph("Machine Learning on Long-Horizon Transaction Data", SUBTITLE),
               Spacer(1, 0.4 * inch)]
     story += bullets([
-        "Group project (6 roles) — Role 2: Leakage-Free Pipeline Lead",
-        "Dataset for results: Sparkov, 1.85 M transactions, 24 months",
+        "Group project — Sparkov: 1.85 M transactions, 24 months",
+        "Fraud base rate 0.521% - 21 walk-forward folds",
         "November 2026",
     ])
     story.append(PageBreak())
@@ -144,31 +144,30 @@ def build() -> None:
     story.append(PageBreak())
 
     # 4
-    story += heading("Project Architecture", "Six roles, one chronological evaluation backbone")
+    story += heading("Methodology - Leakage-Free Evaluation", "How future information is kept out of training")
     story.append(table(
-        ["Stage", "Module / Owner", "What it does"],
+        ["Stage", "Component", "Leakage control"],
         [
-            ["Raw → interim", "Role 1: src/data", "Load CSVs, drop index artifact, timestamp + month, downcast, parquet"],
-            ["Splits", "Role 2: splits.py", "Month windows, walk-forward, embargo, ordering assertion"],
-            ["Train-only state", "Role 2: encoders + preprocessing", "Past-only encoders; impute/scale/one-hot fitted per fold"],
-            ["Features", "Role 3: src/features", "Rolling 24h/7D aggregates, velocity, cyclic time features"],
-            ["Models + metrics", "Role 4: src/models, evaluation", "Factories; PR-AUC, recall@FPR, cost, base rate"],
-            ["Drift + retraining", "Roles 5–6", "PSI/KS/detectors, degradation, five retraining strategies"],
+            ["Raw -> interim", "Data preparation", "Drop index column; derive timestamp + month; downcast; parquet"],
+            ["Splitting", "Chronological walk-forward", "Month windows, expanding/sliding, embargo, max(train) < min(test)"],
+            ["Encoding", "Time-aware encoders", "Expanding past-only train values; frozen train mapping for test"],
+            ["Preprocessing", "ColumnTransformer", "Imputer, scaler and one-hot fitted on training folds only"],
+            ["Features", "Past-only aggregates", "Rolling 24h/7D closed='left'; current row excluded"],
+            ["Evaluation", "Metrics and tuning", "PR-AUC, recall@1%FPR, cost, base rate; walk-forward CV"],
         ], [2.0, 3.2, 6.9],
     ))
     story.append(PageBreak())
 
     # 5
-    story += heading("My Work — Role 2", "The part I can defend line by line")
+    story += heading("Experimental Setup", "Sparkov, walk-forward protocol and model configuration")
     story += bullets([
-        "Month index = year×12 + month−1; December→January is correct.",
-        "walk_forward_splits(): expanding or sliding, non-overlapping test blocks, 21 folds.",
-        "Every split asserts max(train_time) < min(test_time); gap_days adds an embargo.",
-        "Target/frequency encoders: expanding past-only values for train, frozen mapping for test.",
-        "Same-timestamp rows never encode each other; unseen categories fall back to the prior.",
-        "ColumnTransformer fitted on each training fold only.",
-        "leaky_baseline.py is quarantined — used only to measure inflation.",
-        "25 dedicated leakage tests; 55 tests pass in total.",
+        "Dataset: Sparkov, 1,852,394 rows, Jan 2019 - Dec 2020 (24 months).",
+        "Target is_fraud: 9,651 positives, base rate 0.521% - accuracy is never reported.",
+        "Protocol: 3 train months / 1 test month, expanding, gap_days = 0 -> 21 folds.",
+        "Model: Logistic Regression, class_weight='balanced', scaling enabled.",
+        "High-cardinality categoricals target-encoded; rare one-hot categories capped at 100.",
+        "Control: identical features under a deliberately leaky protocol for comparison.",
+        "Reproducibility: seed 42, config-driven, 55 automated tests pass.",
     ], SMALL)
     story.append(PageBreak())
 
@@ -216,18 +215,15 @@ def build() -> None:
     story.append(PageBreak())
 
     # 9
-    story += heading("Team Contributions", "Each member explains their own module")
-    story.append(table(
-        ["Role", "Owner", "Deliverable"],
-        [
-            ["1 — Data Engineer", "__________", "Loading, cleaning, parquet, EDA"],
-            ["2 — Pipeline Lead (me)", "__________", "Splits, encoders, preprocessing, leaky baseline, tests"],
-            ["3 — Features", "__________", "Past-only aggregates, time features, leakage checks"],
-            ["4 — Modeling", "__________", "Model factories, metrics, plots"],
-            ["5 — Drift", "__________", "PSI, KS, ADWIN/DDM/PH, degradation curve"],
-            ["6 — Retraining + report", "__________", "Strategies, cost tracking, scripts, paper"],
-        ], [3.2, 2.5, 6.4],
-    ))
+    story += heading("Discussion - Key Findings", "What the experiments mean for fraud research")
+    story += bullets([
+        "Leakage, not model choice, dominates reported performance: PR-AUC drops 37x under a correct protocol.",
+        "Marginal features look stable (PSI ~ 0), yet a static model degrades monthly - concept drift is the real problem.",
+        "Sliding-window retraining gives the best PR-AUC/cost trade-off; static is ~30x cheaper but weaker.",
+        "Recency weighting maximises recall at a 1% false-positive rate, relevant to chargeback budgets.",
+        "Naive drift triggers fire constantly at this fraud base rate - calibrate thresholds before use.",
+        "Implication: report leakage-free walk-forward results with base rate, never accuracy.",
+    ], SMALL)
     story.append(PageBreak())
 
     # 10
